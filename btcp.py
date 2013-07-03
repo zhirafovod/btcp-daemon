@@ -237,11 +237,18 @@ class BtCP(object):
     except:
       self.blog.debug('save_torrent_stats: file %s an error happened: %s' %(f, sys.exc_info()[0],))
 
+  def remove_torrent(self, i):
+    ''' remove torrent file with id i from torrent client '''
+    try: 
+      self.f.btcp.tc.remove_torrent(i)
+      self.blog.debug('remove_torrent: torrent id %s was removed from torrent client' %(i, ))
+    except:
+      self.blog.debug('remove_torrent: an error happened: %s' %(sys.exc_info()[0],))
+
   def stop_torrent(self, f, i):
     ''' remove torrent file with id i from torrent client , move file f to finished_dir '''
     try: 
-      self.f.btcp.tc.remove_torrent(i)
-      self.blog.debug('stop_torrent: file %s with id %s was removed from torrent client' %(f, i, ))
+      self.remove_torrent(i)
       shutil.move(self.download_dir + '/' + f, self.finished_dir + '/' + f )
       self.blog.debug('stop_torrent: file %s was moved to dir %s' %(f, self.finished_dir, ))
     except:
