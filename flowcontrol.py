@@ -55,6 +55,8 @@ class FlowControl(object):
       elif self.f.btcp.tc_torrents[n].status == 'finished': # has just finished downloading/added a new torrent to client
         self.removeDownloaded(n)                                            # check if all data receivers downloaded a file 'n', mark it as complete then
         logging.debug('checkTorrents(): file %s, not finished yet: %s' %(n, self.f.btcp.cf['dr'].get(self.f.btcp.node_name, )))
+      else:
+        logging.debug('checkTorrents(): skipping - file: %s, status: %s ' %(n, self.f.btcp.tc_torrents[n].status))
 
   def removeDownloaded(self, n):
     ''' remove a downloaded torrent from DR Cassandra queue, remove from Torrent Client '''
@@ -167,10 +169,6 @@ class FlowControl(object):
       logging.debug('checkCassandraQueues() no hostname %s in dr cassandra queue' %(self.f.btcp.node_name,))
       return None
     for n in ts:
-      #if n in self.f.btcp.tc_torrents:
-      #  logging.debug('checkCassandraQueues() %s is already being downloaded' %(n,))
-      #else:
-      #  logging.debug('checkCassandraQueues() %s is not being downloaded yet, self.f.btcp.tc_torrents: %s' %(n,str(self.f.btcp.tc_torrents),))
       if ts[n] == 'new':
         logging.debug('checkCassandraQueues() %s is a new status, adding torrent to downloads...' %(n,))
         btdata = self.f.btcp.cf['files'].get(n)['btdata']
@@ -183,6 +181,10 @@ class FlowControl(object):
         logging.debug('checkCassandraQueues() %s is a group status, adding torrent to downloads...' %(n,))
         group = self.f.btcp.groupName(self.f.btcp.node_name)    # determine node group
         btdata = self.f.btcp.cf['files'].get(n)['btdata' + group]
+        try:  
+          self.f.btcp.remove_torrent(self.f.btcp.tc_torrents[n].id)
+        except:  
+          pass
         self.f.btcp.add_torrent(n, btdata) 
         self.f.btcp.cf['dr'].insert(self.f.btcp.node_name, {n: 'groupdownloading'}) # change status to downloading
         self.f.btcp.cf['queue'].insert(n, {self.f.btcp.node_name: 'groupdownloading'}) # change status to downloading
