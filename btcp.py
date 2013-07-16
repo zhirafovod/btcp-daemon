@@ -382,16 +382,38 @@ class BtCP(object):
     #  self.blog.debug( 'r: ', r)
     return l
 
-  def getalldata(self,):
-    ''' print all data '''
+  def getalldata(self, keys=None, limit=None, pattern=None):
+    ''' print all data for all keys, unless specified 'keys' '''
     d = {}
-    for k in self.cfs:
+    if keys == None:
+      keys = self.cfs
+    for k in keys:
       try:
-        d[k] = self.cf[k].get_range()
+        d[k] = self.cf[k].get_range(row_count=limit)
       except:
         self.blog.debug("Exception: a problem getting all data for queue: %s, error: %s" %(f, sys.exc_info()[0]), )
         raise 
-    return d
+    f = {}
+    if pattern:
+      for k in d:
+        f[k] = self.grepRange(d[k],pattern)
+    else:
+      f = d
+    return f
+
+  def grepRange(self, gr, pattern=None):
+    ''' receives Cassandra get_range generator as 'gr'
+        returns records where key or a column mantches to 'pattern' 
+    '''
+    if not pattern:
+      return ()
+    f = []  # result is an array
+    for r in gr:
+      if pattern == r[0]:
+        f.append(r)
+      elif pattern in [c for c in r[1]]:
+        f.append(r)
+    return f
 
   def unpublish(self, files):
     ''' put files for dr to Flow Control server 

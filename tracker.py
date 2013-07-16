@@ -41,7 +41,7 @@ class TrackerHandler(Resource):
     # add a peer to peer_list stored in factory dict for persistance: self.f.torrent
     tlog.debug('self.__dict__: %s' %(self.__dict__))
     self.add_peer(self.f.torrents, info_hash, peer_id, ip, port)
-    tlog.debug('self.f.torrents adter add_peer: self.f.torrents: %s, info_hash: %s, compact: %s, peer_id: %s, ip: %s, port: %s' %(self.f.torrents, info_hash, compact, peer_id, ip, port))
+    tlog.debug('self.f.torrents after add_peer: self.f.torrents: %s, info_hash: %s, compact: %s, peer_id: %s, ip: %s, port: %s' %(self.f.torrents, info_hash, compact, peer_id, ip, port))
     # Generate a response
     response = {}
     response["interval"] = self.f.interval
