@@ -46,6 +46,7 @@ class FlowControl(object):
   def checkInconsistency(self, stalled=300):
     ''' find torrents older than 'stalled', attempt to fix problem torrents '''
     for n in self.f.btcp.tc_torrents:
+      logging.debug('checkInconsistency(): %s' %(n,))
       d = int(time.time() - self.f.btcp.tc_torrents[n].activityDate)
       if stalled < d:
         self.cleanInconsitentDownload(n)
@@ -133,8 +134,11 @@ class FlowControl(object):
       logging.error('checkAllDownloaded(): file %s not in cassandra "queue"' %(n,))
       return None
 
-    if drs[self.f.btcp.node_name] != 'groupdownloading' and drs[self.f.btcp.node_name] != 'group':
-      self.checkGroupDownloaded(drs, n)    # check if a group download should be started
+    try:
+      if drs[self.f.btcp.node_name] != 'groupdownloading' and drs[self.f.btcp.node_name] != 'group':
+        self.checkGroupDownloaded(drs, n)    # check if a group download should be started
+    except KeyError:
+      logging.debug('checkAllDownloaded(): node is not in queue for file: %s' %(n,))
 
     for dr in drs:    # exits if not everybody finished
       if drs[dr] != 'seeding' and dr != self.f.btcp.node_name:
@@ -159,22 +163,25 @@ class FlowControl(object):
   def cleanInconsitentDownload(self, n):
     ''' check torrent's status in cassandra, remove 'finished' torrent from local client '''
     logging.debug('cleanInconsitentDownload(): %s' %(n,))
-    status = self.f.btcp.cf['files'].get(n, columns=('status',)).items()[0]
+    status = self.f.btcp.cf['files'].get(n, columns=('status',)).items()[0][1]
     if status == 'finished':
       try: 
         self.f.btcp.tc.remove_torrent(self.f.btcp.tc_torrents[n].id)
         logging.debug('cleanInconsitentDownload(): removed_torrent: %s' %(n,))
-      except: pass
+      except: 
+        logging.debug('cleanInconsitentDownload(): failed to removed_torrent: %s' %(n,))
       try: 
-        self.f.btcp.cf['dr'].remove(self.f.btcp.node_name, self.f.btcp.cf['queue'].get(n).iteritems().next() )
+        self.f.btcp.cf['dr'].remove(self.f.btcp.node_name, self.f.btcp.cf['dr'].get(self.f.btcp.node_name, (n,) ).iteritems().next() )
         logging.debug('cleanInconsitentDownload(): removed from dr: %s' %(n,))
       except: 
         logging.debug('cleanInconsitentDownload(): failed to remove from dr: %s' %(n,))
       try: 
-        self.f.btcp.cf['queue'].remove(n, self.f.btcp.cf['queue'].get(self.f.btcp.node_name).iteritems().next() )
+        self.f.btcp.cf['queue'].remove(n, self.f.btcp.cf['queue'].get(n, (self.f.btcp.node_name,)).iteritems().next() )
         logging.debug('cleanInconsitentDownload(): removed from queue: %s' %(n,))
       except: 
         logging.debug('cleanInconsitentDownload(): failed to remove from queue: %s' %(n,))
+    else:
+      logging.debug('cleanInconsitentDownload(): status not finished: %s' %(n,))
 
   def cleanDownloads(self):
     ''' check torrents statuses in cassandra, remove torrents downloaded by all clients from cassandra '''
@@ -182,9 +189,9 @@ class FlowControl(object):
     for n in self.f.btcp.tc_torrents:
       if n in self.f.btcp.downloaded:
         try: 
-          status = self.f.btcp.cf['files'].get(n, columns=('status',)).items()[0]
+          status = self.f.btcp.cf['files'].get(n, columns=('status',)).items()[0][1]
           if status == 'finished':
-            self.f.btcp.tc.remove_torrent(self.f.btcp.downloaded[n].id)
+            self.f.btcp.tc.remove_torrent(self.f.btcp.tc_torrents[n].id)
             logging.debug('cleanDownloads(): %s is downloaded %s, file status in queue is %s, torrent is removed from client' %(n, self.f.btcp.cf['files'].get(n, ), status, ))
             self.f.btcp.cf['dr'].remove(self.f.btcp.node_name, (n,))
             drs = self.f.btcp.cf['files'].get(n, columns=('drs',)).itervalues().next()
