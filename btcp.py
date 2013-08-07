@@ -1,27 +1,7 @@
 #!/usr/bin/python
 
-from pycassa.pool import ConnectionPool
-import pycassa
-from PythonBittorrent.torrent import *
-from PythonBittorrent.bencode import decode, encode
-from urllib2 import quote
-import json
-import sys
-import time
-import re
-import cgi
-import logging
-import pickle
-import transmissionrpc
-import base64
-import re
-from datetime import datetime
-import shutil
-import os
-import random
-
-class BtCP(object):
-  ''' Root class for the project '''
+class btcp(object):
+  ''' object to store data and cache connections '''
 
   def __init__(self, config='/etc/btcp/sourcer.conf', f=None, standalone=None):
     ''' initialize services '''
@@ -39,70 +19,6 @@ class BtCP(object):
     self.connectTransmission()
     self.dataReload() # read queues 
     self.blog.debug('BtCP.__init__() finished')
-
-  def set_logging(self):
-    ''' set logging based on self.standalone, with self.logLevel verbosity
-    if standalone enabled - write to console
-    otherwise - log to twisted.python module  
-    '''
-    level = getattr(logging,self.logLevel)  # get logging level value from logging module by 'logLevel' name (DEBUG|INFO|WARNING)
-    if self.standalone:
-      ch = logging.StreamHandler()
-      ch.setLevel(level)
-      self.blog = logging.getLogger('btcpstandalone')
-      self.blog.addHandler(ch)
-      self.blog.setLevel(level)
-      self.blog.debug('btcp standalone loaded, __name__: %s' %(__name__,))
-    else:
-      from twisted.python import log
-      from twisted.python.logfile import DailyLogFile
-      log.startLogging(DailyLogFile.fromFullPath(self.f.log_dir + "flowcontrol.log"))
-      self.blog = logging.getLogger('btcp')
-      self.blog.setLevel(level)
-      self.blog.debug('btcp loaded, __name__: %s' %(__name__,))
-
-  def parse_config(self, config_name='/etc/btcp/btcp.conf'):
-    ''' read values from config file 'config_name' and put them to 'self' variables '''
-    import ConfigParser
-    config = ConfigParser.ConfigParser()
-    config.read(config_name)
-    self.node_name= config.get('btcp', 'hostname')    # node host name
-    #self.domain = config.get('btcp', 'domain')        # node domain <- obsolete 
-    self.interval = int(config.get('btcp', 'interval'))    # interval for clients to check tracker updates
-    self.logLevel = config.get('btcp', 'logLevel')    # logging verbosity (DEBUG|WARNING|INFO)
-    self.cassa_keyspace = config.get('btcp', 'cassa_keyspace')     # cassandra keyspace name
-    self.cassa_nodes = config.get('btcp', 'cassa_nodes').replace(' ','').split(',') # comma-separated list of cassandra nodes
-
-  def config(self):
-    ''' !!! Read config here '''
-    # configuration
-    self.fc_local_name = 'localhost' # To which interface to bind local Flow Control 
-    # file queues
-    self.downqueue = None # files to download)
-    self.upqueue = None # files to upload
-    # Cassandra configuration 
-    self.cfs = ( # Cassandra column families list
-      'queue', # Queued Files, each raw key is file name, contain bittorrent data, ds list with statuses, dr list with statuses
-      'processed', # Processed files, each raw key is file name, contain bittorrent data, ds list with statuses, dr list with statuses
-      'hosts', # Hosts, each raw key is a host name with list of files
-      'dr', # Data Receivers Cassandra column family, list of files by data receiver name
-      'ds', # Data Senders Cassandra column family, list of files by data sender name
-      'files', # Data Senders Cassandra column family, list of files by file name, with data receivers as columns
-      'uploadRatio', # uploadRatio statistics, list of files with uploadRatio by receiver name
-    )
-    # Cassandra data persistance 
-    self.pool = None # Cassandra connections pool
-    self.cf = {} # Column Families objects
-    self.last_seen = None # Time when the 
-    # Transmission configuration
-    self.tc_host = 'localhost' # transmission-daemon host 
-    self.tc = None # Transmission Client
-    self.tc_torrents = {} # Torrents on Transmission Client
-    self.download_dir = '/var/lib/transmission-daemon/downloads/' # where to download torrents to
-    self.finished_dir = '/var/lib/transmission-daemon/finished/' # where to download torrents to
-    self.downloaded = {} # store list of downloaded files
-    # Initialization
-    self.blog.debug('BtCP.config() finished')
 
   def start(self):
     ''' Start a daemon, bittorrent tracker, bittorrent client '''
@@ -122,42 +38,6 @@ class BtCP(object):
   def stop(self):
     ''' Stop running daemons, bittorrent tracker, bittorrent client '''
     ''' !!! Code me !!! '''
-
-  def connectCassandra(self):
-    ''' create connection to cassandra and create column family objects '''
-    if not self.pool:
-      try:
-        self.pool = ConnectionPool(self.cassa_keyspace, self.cassa_nodes)
-        for k in self.cfs:
-          self.cf[k] = pycassa.ColumnFamily(self.pool, k)
-        self.blog.debug('BtCP.connectCassandra() - conencted to cassandra. pool: %s, cf: %s' %(self.pool, self.cf, )) 
-      except:
-        self.blog.debug('BtCP.connectCassandra() - error connecting to cassandra. pool: %s, cf: %s, error: %s' %(self.pool, self.cf, sys.exc_info()[0], ))
-    return None
-
-  def connectTransmission(self):
-    ''' start transmission-daemon '''
-    try:
-      # need a code to check if transmission is started 
-      self.tc = transmissionrpc.Client(address='localhost')
-      self.blog.debug('BtCP.connectTransmission() - connected to Transmissionbt. tc: %s' %(self.tc, ))
-    except:
-      self.blog.debug('BtCP.connectTransmission() - error connecting to Transmissionbt. error: %s' %(str(sys.exc_info()),))
-      raise Exception('cannot connect to transmission-daemon is running and allow connection')
-
-  def checkTransmission(self):
-    ''' get a list of torrents from Transmission torrent client and put it to hash tc_torrents '''
-    try: 
-      self.tc_torrents = { t.name: t for t in self.tc.get_torrents()}
-      self.blog.debug('BtCP.checkTransmission() - torrents and statuses: ' + ', '.join(['%s: status: %s' %(t.name, t.status, ) for t in self.tc_torrents.itervalues()]))
-    except ValueError:   # that error happens if transmission client gets a bad data cached
-      self.blog.error('BtCP.checkTransmission() - received bad data from transmission daemon, restarting it...')
-      self.restartTransmission()
-
-  def restartTransmission(self):
-    ''' restart transmission daemon '''
-    os.system('/etc/init.d/transmission-daemon restart')
-    self.blog.error('BtCP.restartTransmission() - restarted Transmission daemon')
 
   def copy(self, files=None, dr=None):
     ''' Create bittorrent file for files, start seeding it, notify command server 
@@ -193,21 +73,6 @@ class BtCP(object):
     self.file_exist(files)
     ''' !!! Code me !!! a call to bittorrent lib to create torrent file '''
     return btfile
-
-  def dataReload(self):
-    ''' Load files from 'hosts' row matching host name '''
-    ''' !!! Code me - need actual logic for that '''
-    try: # receive files to download and store to self.downqueue
-      self.downqueue = self.cf['dr'].get(self.node_name)
-    except pycassa.cassandra.ttypes.NotFoundException:
-      self.downqueue = None
-      self.blog.debug('dataReload() - NotFoundException in dr: %s' %(sys.exc_info()[0], )) 
-    try: # receive files to upload and store to self.upqueue 
-      self.upqueue = self.cf['ds'].get(self.node_name)
-    except pycassa.cassandra.ttypes.NotFoundException:
-      self.upqueue = None
-      self.blog.debug('dataReload() - NotFoundException in ds: %s' %(sys.exc_info()[0], )) 
-    self.blog.debug('dataReload() - dr: %s, ds: %s' %(self.downqueue, self.upqueue, )) 
 
   def update(self):
     ''' fetch files to be downloaded from cassandra '''
@@ -378,8 +243,6 @@ class BtCP(object):
     except:
       self.blog.debug("Exception: a problem getting f: %s, %s" %(f, sys.exc_info()[0]), )
       raise 
-    #for r in l:
-    #  self.blog.debug( 'r: ', r)
     return l
 
   def getalldata(self, keys=None, limit=None, pattern=None):
@@ -437,7 +300,47 @@ class BtCP(object):
       f.write(btdata['btdata'])
     return 'Success: %s saved as %s' %(n, s, )
 
+  #### refactored #### 
 
+  def new(self,n):
+    ''' start new btcp '''
+    self.name = n
+    self.getBtdata()
+    self.add_torrent() 
+    self.status('downloading')
+    
+  def status(self,status):
+    btcp.cf['dr'].insert(self.node_name, {self.name: status}) # change status to downloading
+    btcp.cf['queue'].insert(n, {self.node_name: self.name}) # change status to downloading
+        
+  def group(self,n,btdata):
+    ''' start group donwload '''
+    group = btcp.groupName(btcp.node_name)    # determine node group
+    btdata = btcp.cf['files'].get(n)['btdata' + group]
+    try:  
+      btcp.remove_torrent(btcp.tc_torrents[n].id)
+    except:  
+      pass
+    self.add_torrent() 
+  
+  def finish(self,n):
+      btdata = btcp.cf['files'].get(n)['btdata']
+      try: 
+        btcp.add_torrent(n, btdata) 
+        btcp.cf['dr'].insert(btcp.node_name, {n: 'downloading'})
+        btcp.tc_torrents = btcp.tc.get_torrents()
+      except:
+        logging.error('checkCassandraQueues() attempted to fix torrent %s, failed %s' %(n,str(sys.exc_info()),))
+      else:
+        logging.error('checkCassandraQueues() torrent %s has status %s in cassandra, but not listed on local torrent client...' %(n,str(ts[n]),))
+    
+  def stop(self,n):
+    if n in self.tc_torrents:
+      btcp.save_torrent_stats(n, btcp.tc_torrents[n].id) # save torrent stats to cassandra
+      btcp.stop_torrent(n, btcp.tc_torrents[n].id) # remove torrent from Transmission torrent client, move to finished folder
+    btcp.cf['dr'].remove(btcp.node_name, (n,))
+
+  
 if __name__ == '__main__':
   #btcp = BtCP()
   #self.blog = logging.getLogger('btcp')
