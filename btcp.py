@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
-class btcp(object):
-  ''' object to store data and cache connections '''
+class BtCP(object):
+  ''' Bittorrent Copy '''
 
   def __init__(self, config='/etc/btcp/sourcer.conf', f=None, standalone=None):
     ''' initialize services '''
@@ -11,14 +11,6 @@ class btcp(object):
       self.f = f    # Pointer to factory object, to store persistent data
     else:           # regular run or no 'f'
       self.f = self # pointer to self, to store persistent data
-    # configuration
-    self.parse_config()  # parse config file
-    self.set_logging()   # set logging options
-    self.config()
-    self.connectCassandra()
-    self.connectTransmission()
-    self.dataReload() # read queues 
-    self.blog.debug('BtCP.__init__() finished')
 
   def start(self):
     ''' Start a daemon, bittorrent tracker, bittorrent client '''
@@ -237,54 +229,10 @@ class btcp(object):
       raise 
     return btdata
 
-  def getallfiles(self, f = None):
-    try:
-      l = self.cf['files'].get_range()
-    except:
-      self.blog.debug("Exception: a problem getting f: %s, %s" %(f, sys.exc_info()[0]), )
-      raise 
-    return l
-
-  def getalldata(self, keys=None, limit=None, pattern=None):
-    ''' print all data for all keys, unless specified 'keys' '''
-    d = {}
-    if keys == None:
-      keys = self.cfs
-    for k in keys:
-      try:
-        d[k] = self.cf[k].get_range(row_count=limit)
-      except:
-        self.blog.debug("Exception: a problem getting all data for queue: %s, error: %s" %(f, sys.exc_info()[0]), )
-        raise 
-    f = {}
-    if pattern:
-      for k in d:
-        f[k] = self.grepRange(d[k],pattern)
-    else:
-      f = d
-    return f
-
-  def grepRange(self, gr, pattern=None):
-    ''' receives Cassandra get_range generator as 'gr'
-        returns records where key or a column mantches to 'pattern' 
-    '''
-    if not pattern:
-      return ()
-    f = []  # result is an array
-    for r in gr:
-      if pattern == r[0]:
-        f.append(r)
-      elif pattern in [c for c in r[1]]:
-        f.append(r)
-    return f
-
   def unpublish(self, files):
     ''' put files for dr to Flow Control server 
           files - list of strings, files to transfer '''
     ''' !!! Code me - need actual code to del files from FC server '''
-
-  def check_uploaded(self, files):
-    ''' check if all files were uploaded '''
 
   def saveBtdataFile(self, n=None, s=None):
     ''' fetch torrent file data for file 'n' and save as 's' '''
