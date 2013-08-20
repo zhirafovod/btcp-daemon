@@ -1,5 +1,6 @@
 import ConfigParser
 import logging 
+import sys
 
 class Config(object):
   ''' Configuration object '''
@@ -41,8 +42,8 @@ class Config(object):
       self.log.setLevel(level)
       self.log.debug('btcp standalone loaded, __name__: %s' %(__name__,))
     else:
-      from twisted.python import log
-      from twisted.python.logfile import DailyLogFile
-      log.startLogging(DailyLogFile.fromFullPath(self.log_dir + "/flowcontrol.log"))
       self.log = logging.getLogger('btcp')
       self.log.setLevel(level)
+    e = logging.StreamHandler(stream=sys.stderr)
+    e.setLevel(logging.DEBUG)
+    self.log.addHandler(e)
