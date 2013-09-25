@@ -2,7 +2,7 @@ import pycassa
 
 class Data(object):
   ''' Data object '''
-  
+
   def __init__(self, f=None):
     ''' declare shared objects '''
     self.f = f
@@ -53,7 +53,7 @@ class Data(object):
     else:
       r = d
     return r
-    
+
   def grepRange(self, gr, pattern=None):
     ''' receives Cassandra get_range generator as 'gr'
         returns records where key or a column mantches to 'pattern' 

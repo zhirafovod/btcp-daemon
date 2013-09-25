@@ -15,8 +15,6 @@ class BtCP(object):
       self.f = self # pointer to self, to store persistent data
       self.log = logging.getLogger('btcp')
 
-    
-
   def start(self):
     ''' Start a daemon, bittorrent tracker, bittorrent client '''
     from flowcontrol import FlowControl

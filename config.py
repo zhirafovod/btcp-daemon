@@ -4,15 +4,10 @@ import sys
 
 class Config(object):
   ''' Configuration object '''
-  
-  def __init__(self, conf_file, f=None, standalone=None):
+
+  def __init__(self, conf_file='/etc/btcp/btcp.conf',standalone=None):
     ''' init config '''
-    # detect run mode
-    if f:           # the object is called from tiwstd factory, factory object is supplied in 'f'
-      self.f = f    # Pointer to factory object, to store persistent data
-    else:           # regular run or no 'f'
-      self.f = self # pointer to self, to store persistent data
-    self.standalone = standalone  # standalone mode
+    self.standalone = standalone
     self.parse_config(conf_file)  # parse config file
     self.set_logging()
 
@@ -21,17 +16,17 @@ class Config(object):
     config = ConfigParser.ConfigParser()
     config.read(conf_name)
     self.node_name= config.get('btcp', 'hostname')    # node host name
-    self.log_dir = config.get('btcp', 'log_dir') 
     self.interval = int(config.get('btcp', 'interval'))    # interval for clients to check tracker updates
+    self.log_dir = config.get('btcp', 'log_dir')
     self.logLevel = config.get('btcp', 'logLevel')    # logging verbosity (DEBUG|WARNING|INFO)
     self.cassa_keyspace = config.get('btcp', 'cassa_keyspace')     # cassandra keyspace name
     self.cassa_nodes = config.get('btcp', 'cassa_nodes').replace(' ','').split(',') # comma-separated list of cassandra nodes
-    self.handler_port = config.getint('btcp', 'handler_port')     # cassandra keyspace name
+    self.handler_port = config.getint('btcp', 'handler_port')     # port tp start http handler
 
   def set_logging(self):
     ''' set logging based on self.standalone, with self.logLevel verbosity
     if standalone enabled - write to console
-    otherwise - log to twisted.python module  
+    otherwise - log to twisted.python module
     '''
     level = getattr(logging,self.logLevel)  # get logging level value from logging module by 'logLevel' name (DEBUG|INFO|WARNING)
     if self.standalone:

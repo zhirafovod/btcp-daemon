@@ -4,3 +4,4 @@ debian/python-btcp-daemon
 debian/python-btcp-daemon\.*\.debhelper
 *\.swp
 *.pyc
+*\.iml
