@@ -5,8 +5,25 @@ import sys
 class Config(object):
   ''' Configuration object '''
 
+  # Cassandra's Column Families
+  cfs = (
+    'queue', # Queued Files, each raw key is file name, contain bittorrent data, ds list with statuses, dr list with statuses
+    'processed', # Processed files, each raw key is file name, contain bittorrent data, ds list with statuses, dr list with statuses
+    'hosts', # Hosts, each raw key is a host name with list of files
+    'dr', # Data Receivers Cassandra column family, list of files by data receiver name
+    'ds', # Data Senders Cassandra column family, list of files by data sender name
+    'files', # Data Senders Cassandra column family, list of files by file name, with data receivers as columns
+    'uploadRatio', # uploadRatio statistics, list of files with uploadRatio by receiver name
+  )
+
+
   def __init__(self, conf_file='/etc/btcp/btcp.conf',standalone=None):
-    ''' init config '''
+    """
+    @type self: Config
+    @param conf_file:
+    @param standalone:
+    @return:
+    """
     self.standalone = standalone
     self.parse_config(conf_file)  # parse config file
     self.set_logging()

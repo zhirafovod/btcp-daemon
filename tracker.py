@@ -14,12 +14,16 @@ from twisted.web.server import Site
 
 from PythonBittorrent.bencode import encode
 
-
 class TrackerHandler(Resource):
   ''' Bittorrent Tracker HTTP handler '''
 
   def __init__(self, f):
-    ''' initialize '''
+    """
+    @type self: TrackerHandler
+    @type f: btcp.daemon.Daemon
+    @param f:
+    @return:
+    """
     # store pointer to factory object for persistent data
     self.f = f
     tlog.debug('Tracker().__init__, received t: %s, f.__dict__: %s' %(f,f.__dict__,))
@@ -40,14 +44,14 @@ class TrackerHandler(Resource):
     ip = r.getClientIP()
     # add a peer to peer_list stored in factory dict for persistance: self.f.torrent
     tlog.debug('self.__dict__: %s' %(self.__dict__))
-    self.add_peer(self.f.torrents, info_hash, peer_id, ip, port)
+    self.add_peer(self.f.data.tc_torrents, info_hash, peer_id, ip, port)
     tlog.debug('self.f.torrents after add_peer: self.f.torrents: %s, info_hash: %s, compact: %s, peer_id: %s, ip: %s, port: %s' %(self.f.torrents, info_hash, compact, peer_id, ip, port))
     # Generate a response
     response = {}
-    response["interval"] = self.f.interval
+    response["interval"] = self.f.config.interval
     response["complete"] = 0
     response["incomplete"] = 0
-    response["peers"] = self.peer_list(self.f.torrents[info_hash], compact) 
+    response["peers"] = self.peer_list(self.f.data.tc_torrents[info_hash], compact)
     # Log the request, and what we send back
     tlog.debug("PACKAGE: %s", r.args)
     tlog.debug("RESPONSE: %s", response)
@@ -101,7 +105,13 @@ class Command(Resource):
   ''' HTTP handler to monitor and manage cassandra queues '''
 
   def __init__(self, run=''):
-    ''' load config, map run to method, store it to self.c '''
+    """
+    load config, map run to method, store it to self.c
+
+    @type self: Command
+    @param run:
+    @return:
+    """
     self.isLeaf = True
     try:
       self.c = getattr(self, run)

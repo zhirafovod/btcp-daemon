@@ -1,50 +1,69 @@
 #!/usr/bin/python
+from btcpdaemon.client import client
+from btcpdaemon.singleton import Singleton
+from btcpdaemon.tools import groupName, groupByPattern
 
-class BtCP(object):
-  ''' Bittorrent Copy '''
+class btcp(client):
+  """ Bittorrent Copy file """
 
-  def __init__(self, config='/etc/btcp/sourcer.conf', f=None, standalone=None):
-    ''' initialize services '''
+  btcps = {}
+
+  def __new__(cls, name, *args, **kwargs):
+    """ implements btcp factory to instantiate only one instance for each file
+
+    @param cls:
+    @param name: btcp file name
+    @type name: str
+    @param args:
+    @param kwargs:
+    @return:
+    """
+    if name not in cls.btcps:
+      cls.btcps[name] = super(btcp, cls).__new__(
+                               cls, name, *args, **kwargs)
+    return cls.btcps[name]
+
+  def __init__(self, name):
+    """
+    @type name: str
+    @param name: file name
+    @return:
+    """
+    if file not in self.btcps:
+      self.btcps[btcp] = btcp(name)
+    return self.btcp[name]
+
+  def __init__(self, name, f, config='/etc/btcpdaemon/sourcer.conf', standalone=None):
+    """
+    @type self: BtCP
+    @type f: btcpdaemon.daemon.Daemon
+    """
     self.standalone = standalone # store run mode
     # detect run mode
     if f:           # the object is called from tiwstd factory, factory object is supplied in 'f'
       self.f = f    # Pointer to factory object, to store persistent data
-      self.log = self.f.config.log    # alias to logger 
+      self.log = f.config.log    # alias to logger
     else:                           # regular run or no 'f'
-      import logging
-      self.f = self # pointer to self, to store persistent data
-      self.log = logging.getLogger('btcp')
+      #import logging
+      #self.f = self # pointer to self, to store persistent data
+      #self.log = logging.getLogger('btcpdaemon')
+      pass
 
-  def start(self):
-    ''' Start a daemon, bittorrent tracker, bittorrent client '''
-    from flowcontrol import FlowControl
-    from twisted.internet import reactor
-    from twisted.python import log
-    from twisted.python.logfile import DailyLogFile
-    log.startLogging(DailyLogFile.fromFullPath(self.f.log_dir + "btcp.log"))
-    #self.tt = bttracker(self.ts_name) # !!! Code bttracker() !!!
-    #self.ts = bttorrent(self.ts_name) # !!! Code btTorrent() !!!
-    self.fc = FlowControl(f=self.f) # !!! Code FlowControle() !!!
-    reactor.callLater(self.interval, self.fc._tick) # schedule to run next time in self.interval 
-    reactor.callLater(self.interval + 10, self.fc._tack) # schedule to run next time in self.interval 
-    self.log.debug('BtCP.start: started!')
-    ''' !!! Code me !!! '''
 
-  def stop(self):
-    ''' Stop running daemons, bittorrent tracker, bittorrent client '''
-    ''' !!! Code me !!! '''
+
+
 
   def copy(self, files=None, dr=None):
-    ''' Create bittorrent file for files, start seeding it, notify command server 
+    ''' Create bittorrent file for files, start seeding it, notify command server
           files - list of strings, files
-          dr - list of strings - data receivers: btcp nodes - receivers of the files
+          dr - list of strings - data receivers: btcpdaemon nodes - receivers of the files
           return status
     '''
     if not files or not dr:
-      return self.copy.__doc__ 
+      return self.copy.__doc__
     for f in files:
       tracker_url = 'http://%s:9200/ann?ls=topsecret' % (self.node_name,)
-      btdata = make_torrent_file(file = f, tracker = tracker_url, comment = None)
+      btdata = make_torrent_file(file=f, tracker=tracker_url, comment=None)
       self.log.debug('btdata for file %s created' % (f))
       r = self.publish(f, btdata, dr)
       if not r:
@@ -62,7 +81,7 @@ class BtCP(object):
         raise 'File is not accessible: %s', f
 
   def bt_create(self, files):
-    ''' Create a bittorrent for files 
+    ''' Create a bittorrent for files
         files - a list of strings
         return - path to bittorrent file '''
     self.file_exist(files)
@@ -76,223 +95,106 @@ class BtCP(object):
       #fc = self.cf['queue'].get_range()
       pass
     except:
-      self.log.debug("Exception: self.cf['queue'].insert(f, {'btdata': btdata, 'status': 'new', 'source': 'localhost', 'dr': dr}): %s" %(sys.exc_info()[0]))
+      self.log.debug(
+        "Exception: self.cf['queue'].insert(f, {'btdata': btdata, 'status': 'new', 'source': 'localhost', 'dr': dr}): %s" % (
+          sys.exc_info()[0]))
       raise
 
   def checkDir(self, d):
     ''' check that a dir exist and has the right permissions '''
     if not os.path.exists(d):
       os.makedirs(d)
-      self.log.debug('checkDir: created dir %d' %(d, ))
+      self.log.debug('checkDir: created dir %d' % (d, ))
     os.chmod(d, 0777)
-    self.log.debug('checkDir: applied permissions to dir %d' %(d, ))
+    self.log.debug('checkDir: applied permissions to dir %d' % (d, ))
 
   def save_torrent_stats(self, f, i):
     ''' retrive torrent stats from transmission client and store them to cassandra '''
-    try: 
-      uploadRatio = self.f.btcp.tc.get_torrent(i).uploadRatio
-      self.log.debug('save_torrent_stats: file %s with id %s uploadRatio %s' %(f, i, uploadRatio, ))
-      self.f.btcp.cf['uploadRatio'].insert(f, {self.f.btcp.node_name : str(uploadRatio)}) # add uploadRatio for file f
-      self.log.debug('save_torrent_stats: node %s uploadRatio was inserted for file %s' %(self.f.btcp.node_name, f, ))
+    try:
+      uploadRatio = self.f.connector.tc.get_torrent(i).uploadRatio
+      self.log.debug('save_torrent_stats: file %s with id %s uploadRatio %s' % (f, i, uploadRatio, ))
+      self.f.btcp.cf['uploadRatio'].insert(f, {self.f.btcp.node_name: str(uploadRatio)}) # add uploadRatio for file f
+      self.log.debug('save_torrent_stats: node %s uploadRatio was inserted for file %s' % (self.f.btcp.node_name, f, ))
     except:
-      self.log.debug('save_torrent_stats: file %s an error happened: %s' %(f, sys.exc_info()[0],))
+      self.log.debug('save_torrent_stats: file %s an error happened: %s' % (f, sys.exc_info()[0],))
 
   def remove_torrent(self, i):
-    ''' remove torrent file with id i from torrent client '''
-    try: 
-      self.f.btcp.tc.remove_torrent(i)
-      self.log.debug('remove_torrent: torrent id %s was removed from torrent client' %(i, ))
+    ''' remove torrent file with id i from torrent client
+    @type self: BtCP
+    '''
+    try:
+      self.f.connector.tc.remove_torrent(i)
+      self.log.debug('remove_torrent: torrent id %s was removed from torrent client' % (i, ))
     except:
-      self.log.debug('remove_torrent: an error happened: %s' %(sys.exc_info()[0],))
+      self.log.debug('remove_torrent: an error happened: %s' % (sys.exc_info()[0],))
 
   def stop_torrent(self, f, i):
     ''' remove torrent file with id i from torrent client , move file f to finished_dir '''
-    try: 
-      self.remove_torrent(i)
-      shutil.move(self.download_dir + '/' + f, self.finished_dir + '/' + f )
-      self.log.debug('stop_torrent: file %s was moved to dir %s' %(f, self.finished_dir, ))
-    except:
-      self.log.debug('stop_torrent: file %s an error happened: %s' %(f, sys.exc_info()[0],))
-
-  def start_torrent(self, f, btdata):
-    ''' add a torrent to torrent client '''
     try:
-      # move file to a download dir
-      print '%s: %s' %(f, self.download_dir + '/' + f)
-      shutil.move(f, self.download_dir + '/' + f)
-      os.chmod(self.download_dir + '/' + f, 0777)
-      self.tc.add_torrent(base64.b64encode(btdata), download_dir = self.download_dir)
-      self.log.debug('flowControle.start_torrent: started btdata for f: %s' %(f,))
+      self.remove_torrent(i)
+      shutil.move(self.f.config.download_dir + '/' + f, self.finished_dir + '/' + f)
+      self.log.debug('stop_torrent: file %s was moved to dir %s' % (f, self.finished_dir, ))
     except:
-      self.log.error('flowControle.start_torrent: error: %s' %(sys.exc_info()[0],))
-      raise
+      self.log.debug('stop_torrent: file %s an error happened: %s' % (f, sys.exc_info()[0],))
+
+
 
   def add_torrent(self, f, btdata):
     ''' add a torrent to torrent client '''
     try:
-      self.tc.add_torrent(base64.b64encode(btdata), download_dir = self.download_dir)
-      self.log.debug('add_torrent: started btdata for f: %s' %(f,))
+      self.tc.add_torrent(base64.b64encode(btdata), download_dir=self.f.config.download_dir)
+      self.log.debug('add_torrent: started btdata for f: %s' % (f,))
     except:
-      self.log.debug('add_torrent: error: %s' %(str(sys.exc_info()),))
-      raise 
+      self.log.debug('add_torrent: error: %s' % (str(sys.exc_info()),))
+      raise
 
-  def groupName(self, name, pattern='.*(\D{2})\d+$'):
-    ''' match node 'name' against 'pattern' and return group name
-        default is to match nodes by 2 letters identifying node's Data Center ('s(tx)123' => tx, for example)
-        return string - group name
-    '''
-    g = 'unknown'    # 'unknown' group by default
-    m = re.match(pattern, name)  
-    if m.group(1):    # set group if node name matched to regex 'pattern'
-      g = m.group(1)  
-    return g
 
-  def groupByPattern(self, dr, pattern='.*(\D{2})\d+$'):
-    ''' group Data Receivers to list matching against 'pattern' 
-        default is to match nodes by 2 letters identifying node's Data Center ('s(tx)123' => tx, for example)
-        return dict of groups with list of matched nodes, for example: { 'unknown': ['testnode'], 'tx': ['stx1','stx2','stx3'], 'va': ['sva1','sva2','sva3'] } 
-    '''
-    drs = re.sub('\s','',dr).split(',') # remove white-spaces, split to an array by ',', map to dict with a New status
-    r = {};    # dict to store result list
-    for node in drs: 
-      g = self.groupName(node, pattern)    # return group name
-      r[g] = r.get(g, []) + [node]    # add node to group list
-    return r
 
-  def prioritizeNodes(self, d):
-    ''' receives a dict 'd' with nodes grouped by a key, for example: { 'unknown': ['testnode'], 'tx': ['stx1','stx2','stx3'], 'va': ['sva1','sva2','sva3'] } 
-        return a dict of nodes and priority for each node (who will download 1st, who will download 2nd), example: { 'testnode': 1, 'stx1': 2, 'stx2': 2, 'stx3': 1, ...} 
-    '''
-    t = {};    # a dict of nodes with priorities
-    for k in d.keys():
-      for n in d[k]:
-        t[n] = '2'    # set everybody to the 2nd priority by default
-      t[random.choice(d[k])] = 'new'    # select one random node for a group to be downloaded
-    return t
 
-  def publish(self, f, btdata, dr):
-    ''' put files for dr to Flow Control server 
-          f - string, file to transfer
-          btdata - string, file data to transfer
-          dr - string, data receivers 
-    '''
-    try: # check if the file already exist
-      q = self.cf['files'].get(f)
-      self.log.debug('Error publishing f: %s, file already exist in the queue: %s' %(f,q,))
-      return 'Error publishing f: %s, file already exist in the queue: %s' %(f,q,)
-    except pycassa.cassandra.ttypes.NotFoundException:
-      self.log.debug('checked that f: %s is not in the queue' %(f,))
-      pass
 
-    nodesGrouped = self.groupByPattern(dr)    # group nodes by pattern
-    nodesPrioritized = self.prioritizeNodes(nodesGrouped)    # prioritize nodes in each group, selecting one node in each group for 1st copy turn, the rest for 2nd turn
-    if len(nodesPrioritized) == 0:
-      self.log.debug('No Data Receivers recognized in string dr: %s' %(dr,))
-      raise 'No Data Receivers recognized in string dr: %s' %(dr,)
+  #### refactored ####
 
-    self.start_torrent(f, btdata)    # start torrent file for file named 'f' and bittorrent data 'btdata'
-    self.publishData(f, btdata, dr, nodesGrouped, nodesPrioritized)    # 
-
-  def publishData(self, f, btdata, dr, nodesGrouped, nodesPrioritized):
-    ''' publish all information related to file to Cassandra '''
-
-    p = {    # file properties
-      'btdata': btdata,      # Bittorrent data 
-      'status': 'new',       # status - new
-      'tier': '1',           # status - new
-      'drs': dr,             # string with list of all Data Receivers
-      'ds': self.node_name   # Data Source
-      }
-    self.cf['files'].insert(f, p)    # publish file properties
-    self.log.debug('files.insert: %s, nodes: %s' %(f,nodesPrioritized,))
-    
-    self.cf['ds'].insert(self.node_name, {f: 'seeding'})    # put information about data sender
-    self.log.debug('ds.insert: %s, ds: %s' %(f, self.node_name, ))
-   
-    for r in nodesPrioritized:    # insert file to each Data Receivers queue
-      if r == self.node_name:
-        self.cf['dr'].insert(r, {f: 'seeding'})
-        self.log.debug('dr.insert: %s, node: %s' %(f,r,))
-      elif nodesPrioritized[r] == 'new':    # starting tier 1 here
-        self.cf['dr'].insert(r, {f: 'new'})
-        self.log.debug('dr.insert: %s, node: %s' %(f,r,))
-    
-    self.cf['queue'].insert(f, nodesPrioritized)    # add file to global queue, with dataa receivers statuses
-    self.log.debug('queue.insert: %s, nodes: %s' %(f,str(nodesPrioritized),))
-    self.log.debug('Sucessfully inserted: f: %s, drs: %s' %(f, nodesPrioritized, ))
-
-  def getBtData(self, fn):
-    try:
-      btdata = self.cf['files'].get(fn)
-    except pycassa.cassandra.ttypes.NotFoundException:
-      self.log.debug("Exception: getBtData: NotFoundException: self.cf['files'].get('fn'): %s" %(sys.exc_info()[0]))
-      return pycassa.cassandra.ttypes.NotFoundException
-    except:
-      self.log.debug("Exception: getBtData: self.cf['files'].get('fn'): %s" %(sys.exc_info()[0]))
-      raise 
-    return btdata
-
-  def unpublish(self, files):
-    ''' put files for dr to Flow Control server 
-          files - list of strings, files to transfer '''
-    ''' !!! Code me - need actual code to del files from FC server '''
-
-  def saveBtdataFile(self, n=None, s=None):
-    ''' fetch torrent file data for file 'n' and save as 's' '''
-    # Fetch btdata
-    try:
-      btdata = self.cf['files'].get(n)
-    except pycassa.cassandra.ttypes.NotFoundException:
-      return '404: File %s Not Found' %(n,)
-    self.log.debug('btdata: type: %s, len: %s' %(type(btdata),len(btdata)))
-    if not s:
-      s = n + '.torrent'
-    with open(s, "w") as f:
-      f.write(btdata['btdata'])
-    return 'Success: %s saved as %s' %(n, s, )
-
-  #### refactored #### 
-
-  def new(self,n):
-    ''' start new btcp '''
+  def new(self, n):
+    ''' start new btcpdaemon '''
     self.name = n
     self.getBtdata()
-    self.add_torrent() 
+    self.add_torrent()
     self.status('downloading')
-    
-  def status(self,status):
-    btcp.cf['dr'].insert(self.node_name, {self.name: status}) # change status to downloading
-    btcp.cf['queue'].insert(n, {self.node_name: self.name}) # change status to downloading
-        
-  def group(self,n,btdata):
+
+
+  def group(self, n, btdata):
     ''' start group donwload '''
-    group = btcp.groupName(btcp.node_name)    # determine node group
-    btdata = btcp.cf['files'].get(n)['btdata' + group]
-    try:  
+    group = groupName(btcp.node_name)    # determine node group
+    btdata = btcp.cf['info'].get(n)['btdata' + group]
+    try:
       btcp.remove_torrent(btcp.tc_torrents[n].id)
-    except:  
+    except:
       pass
-    self.add_torrent() 
-  
-  def finish(self,n):
-      btdata = btcp.cf['files'].get(n)['btdata']
-      try: 
-        btcp.add_torrent(n, btdata) 
-        btcp.cf['dr'].insert(btcp.node_name, {n: 'downloading'})
-        btcp.tc_torrents = btcp.tc.get_torrents()
-      except:
-        logging.error('checkCassandraQueues() attempted to fix torrent %s, failed %s' %(n,str(sys.exc_info()),))
-      else:
-        logging.error('checkCassandraQueues() torrent %s has status %s in cassandra, but not listed on local torrent client...' %(n,str(ts[n]),))
-    
-  def stop(self,n):
+    self.add_torrent()
+
+  def finish(self, n):
+    btdata = btcp.cf['info'].get(n)['btdata']
+    try:
+      btcp.add_torrent(n, btdata)
+      btcp.cf['dr'].insert(btcp.node_name, {n: 'downloading'})
+      btcp.tc_torrents = btcp.tc.get_torrents()
+    except:
+      logging.error('checkCassandraQueues() attempted to fix torrent %s, failed %s' % (n, str(sys.exc_info()),))
+    else:
+      logging.error(
+        'checkCassandraQueues() torrent %s has status %s in cassandra, but not listed on local torrent client...' % (
+          n, str(ts[n]),))
+
+  def stop(self, n):
     if n in self.tc_torrents:
       btcp.save_torrent_stats(n, btcp.tc_torrents[n].id) # save torrent stats to cassandra
-      btcp.stop_torrent(n, btcp.tc_torrents[n].id) # remove torrent from Transmission torrent client, move to finished folder
+      btcp.stop_torrent(n, btcp.tc_torrents[
+        n].id) # remove torrent from Transmission torrent client, move to finished folder
     btcp.cf['dr'].remove(btcp.node_name, (n,))
+ode_name, (n,))
 
-  
+
 if __name__ == '__main__':
-  #btcp = BtCP()
-  #self.log = logging.getLogger('btcp')
+  #btcpdaemon = BtCP()
+  #self.log = logging.getLogger('btcpdaemon')
   pass

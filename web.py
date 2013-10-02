@@ -19,6 +19,8 @@ import transmissionrpc
 import base64
 import re
 from datetime import datetime
+from btcpdaemon import tools
+
 
 class web(object):
   ''' Web Interface '''
@@ -69,8 +71,8 @@ class web(object):
     #       f.write(btdata)
     #       f.close
     #       logging.debug( 'btdata: %s, len(dr): %s, dr: %s' %(type(btdata), type(dr), dr))
-    #       r = self.f.btcp.publish(f = decode(btdata)['info']['name'], btdata = btdata, dr = dr)
-    #       logging.debug('publishing btcp.fc.publish(f, btdata, dr): %s' %(r, ))
+    #       r = self.f.btcpdaemon.publish(f = decode(btdata)['info']['name'], btdata = btdata, dr = dr)
+    #       logging.debug('publishing btcpdaemon.fc.publish(f, btdata, dr): %s' %(r, ))
     #       #tmpf.write(btdata)
     #       #tmpf.close()
     #       return '<html><body>' + str(['<p>You submitted: len(%s): %s</p>' % (x, request.args[x][0]) for x in request.args]) + 'result is: %s' %(r,) + '</body></html>'
@@ -113,6 +115,25 @@ class web(object):
       d = self.f.data.getData(keys=keys,limit=limit,pattern=pattern)
       return '<p>fetched data from %s queues:</p><p>tcp.fc.getalldata():</p>' %(len(d),) + ''.join([ '<p><b>%s</b></p> %s' % (k, ''.join(['<p>%s</p>' %(x,) for x in d[k]]),) for k in d]) 
 
-    def render_GET(self, request):
-      ''' run method 'request' and output result '''
-      return self.c(request)
+    def getData(self, keys=None, limit=None, pattern=None):
+      ''' fetch data from Cassandra '''
+      d = {}
+      if keys == None:
+        keys = self.f.config.cfs
+      for k in keys:
+        try:
+          d[k] = self.f.connector.cf[k].get_range(row_count=limit)
+        except:
+          raise
+      r = {}
+      if pattern:
+        for k in d:
+          r[k] = tools.grepRange(d[k],pattern)
+      else:
+        r = d
+      return r
+
+
+      def render_GET(self, request):
+        ''' run method 'request' and output result '''
+        return self.c(request)
